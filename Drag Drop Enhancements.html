@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shop Designing Website</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        .workspace {
+            width: 100%;
+            height: 500px;
+            border: 2px dashed #ccc;
+            position: relative;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(50px, 1fr));
+            grid-auto-rows: minmax(50px, auto);
+            gap: 5px;
+        }
+        .draggable {
+            position: absolute;
+            cursor: grab;
+            resize: both;
+            overflow: auto;
+            background: #f3f3f3;
+            padding: 5px;
+            border: 1px solid #000;
+        }
+        .code-editor {
+            width: 100%;
+            height: 150px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            font-family: monospace;
+        }
+        .output-panel {
+            width: 100%;
+            height: 100px;
+            border: 1px solid #ccc;
+            background: #eef;
+            padding: 10px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="builder-container">
+        <div class="toolbar">
+            <button class="add-element" data-type="text">Text</button>
+            <button class="add-element" data-type="image">Image</button>
+            <button class="add-element" data-type="table">Table</button>
+            <button class="add-element" data-type="form">Form</button>
+            <button class="add-element" data-type="product">Product</button>
+            <button id="saveLayout">Save Layout</button>
+            <button id="loadLayout">Load Layout</button>
+        </div>
+        <div class="workspace" id="workspace"></div>
+        
+        <h3>Custom Code Block</h3>
+        <textarea id="codeEditor" class="code-editor" placeholder="Write JavaScript here..."></textarea>
+        <button id="runCode">Run Code</button>
+        <div id="outputPanel" class="output-panel"></div>
+    </div>
+
+    <script>
+        document.querySelectorAll('.add-element').forEach(button => {
+            button.addEventListener('click', function() {
+                let elementType = this.getAttribute('data-type');
+                let element;
+
+                switch (elementType) {
+                    case 'text':
+                        element = document.createElement('div');
+                        element.textContent = 'Editable Text';
+                        element.contentEditable = true;
+                        break;
+                    case 'image':
+                        element = document.createElement('img');
+                        element.src = 'placeholder.png';
+                        element.alt = 'Image';
+                        break;
+                    case 'table':
+                        element = document.createElement('table');
+                        element.innerHTML = '<tr><td>Row 1, Col 1</td><td>Row 1, Col 2</td></tr>';
+                        break;
+                    case 'form':
+                        element = document.createElement('form');
+                        element.innerHTML = '<input type="text" placeholder="Enter text">';
+                        break;
+                    case 'product':
+                        element = document.createElement('div');
+                        element.classList.add('product');
+                        element.innerHTML = '<img src="product-placeholder.png" alt="Product"><p>Product Name</p><button>Add to Cart</button>';
+                        break;
+                }
+
+                element.classList.add('draggable');
+                element.setAttribute('draggable', true);
+                element.style.left = '50px';
+                element.style.top = '50px';
+                element.addEventListener('mousedown', startDrag);
+                document.getElementById('workspace').appendChild(element);
+            });
+        });
+
+        function startDrag(event) {
+            let element = event.target;
+            let shiftX = event.clientX - element.getBoundingClientRect().left;
+            let shiftY = event.clientY - element.getBoundingClientRect().top;
+            
+            function moveAt(pageX, pageY) {
+                let gridSize = 10;
+                element.style.left = Math.round(pageX / gridSize) * gridSize + 'px';
+                element.style.top = Math.round(pageY / gridSize) * gridSize + 'px';
+            }
+
+            function onMouseMove(event) {
+                moveAt(event.pageX - shiftX, event.pageY - shiftY);
+            }
+
+            document.addEventListener('mousemove', onMouseMove);
+
+            element.onmouseup = function() {
+                document.removeEventListener('mousemove', onMouseMove);
+                element.onmouseup = null;
+            };
+        }
+
+        document.getElementById('saveLayout').addEventListener('click', async () => {
+            const workspace = document.getElementById('workspace');
+            const layout = [];
+            workspace.childNodes.forEach(element => {
+                if (element.classList && element.classList.contains('draggable')) {
+                    layout.push({
+                        type: element.tagName.toLowerCase(),
+                        content: element.innerHTML,
+                        style: {
+                            left: element.style.left,
+                            top: element.style.top,
+                            width: element.style.width,
+                            height: element.style.height
+                        }
+                    });
+                }
+            });
+            await axios.post('http://localhost:5000/save-layout', { userId: 'testUser', layout });
+        });
+
+        document.getElementById('loadLayout').addEventListener('click', async () => {
+            const response = await axios.get('http://localhost:5000/load-layout/testUser');
+            const data = response.data;
+            if (data.layout) {
+                document.getElementById('workspace').innerHTML = '';
+                data.layout.layout.forEach(item => {
+                    let element = document.createElement(item.type);
+                    element.innerHTML = item.content;
+                    element.classList.add('draggable');
+                    Object.assign(element.style, item.style);
+                    document.getElementById('workspace').appendChild(element);
+                });
+            }
+        });
+    </script>
+</body>
+</html>
